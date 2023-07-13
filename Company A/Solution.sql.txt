@@ -1,0 +1,42 @@
+--- The first CTE (Common Table Expression) named "april_cohort" is used to create a dataset of students who completed their first lesson in the "data-analyst" profession in April 2020.
+WITH april_cohort AS ( 
+
+          SELECT user_id 
+
+          FROM (SELECT user_id, date_created, row_number() over( partition by user_id order by  date_created)
+                          FROM finished_lesson_test f
+                          JOIN lesson_index_test d ON f.lesson_id = d.lesson_id 
+
+                                                                     AND  d.profession_name = 'data-analyst')
+           WHERE DATE_TRUNC('month', date_created) = DATE '2020-04-01' AND rn = 1),
+
+--- The second CTE (Common Table Expression) named "lesson_time" is used to create a dataset that helps us compare the completion dates of a lesson (t) with the completion date of the next lesson (t+1).
+lesson_time AS (
+         SELECT f.user_id,
+         f.date_created,
+
+         --- The LEAD function returns the next record (t+1) relative to the current record within a window 
+         LEAD(f.date_created) OVER (PARTITION BY f.user_id ORDER BY f.date_created) AS            next_lesson_datetime,
+
+         d.profession_name,
+
+         f.lesson_id
+         FROM finished_lesson_test f
+         JOIN lesson_index_test d ON f.lesson_id = d.lesson_id
+         JOIN april_cohort apl ON f.user_id = apl.user_id
+         WHERE d.profession_name = 'data-analyst' )
+
+SELECT EXTRACT(EPOCH FROM (next_lesson_datetime - date_created)) delta_seconds, 
+
+            date_created lesson_datetime,
+
+            lesson_id,
+
+            next_lesson_datetime,
+
+            profession_name,
+
+            user_id
+FROM lesson_time 
+WHERE next_lesson_datetime IS NOT NULL
+AND EXTRACT(EPOCH FROM (next_lesson_datetime - date_created)) <= 5;
